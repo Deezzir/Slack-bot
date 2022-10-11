@@ -2,14 +2,18 @@ package bots
 
 import (
 	"context"
+	"encoding/json"
 	"slack-bot/pkg/blob"
 	"slack-bot/pkg/config"
 	"slack-bot/pkg/games"
 	"slack-bot/pkg/utils"
 	"strings"
 
+	"github.com/krognol/go-wolfram"
 	"github.com/shomali11/slacker"
 	"github.com/slack-go/slack"
+	"github.com/tidwall/gjson"
+	witai "github.com/wit-ai/wit-go/v2"
 
 	"fmt"
 	"strconv"
@@ -211,6 +215,42 @@ var slackValidateEmail = SlackCommand{
 			}
 
 			response.Reply(r)
+		},
+	},
+}
+
+var slackAskQuestion = SlackCommand{
+	Name: "ask <question>",
+	CommandDefinition: &slacker.CommandDefinition{
+		Description: "Ask Noxu-bot a question.",
+		Examples:    []string{"ask what is the meaning of life?", "ask what is the weather like today?"},
+		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
+			param := request.Param("question")
+			query := utils.ExtractTxt(utils.HyperlinkRegex, param)
+			if query == "" {
+				query = param
+			}
+
+			msg, _ := config.WitAIClient.Parse(&witai.MessageRequest{
+				Query: query,
+			})
+
+			obj, err := json.MarshalIndent(msg, "", "    ")
+			if err != nil {
+				utils.ErrorLogger.Printf("Failed to encode Wit AI response - %s\n", err)
+				response.Reply("Something went wrong, sorry")
+				return
+			}
+
+			question := gjson.Get(string(obj[:]), "entities.wit$wolfram_search_query:wolfram_search_query.0.value")
+			res, err := config.WolframClient.GetSpokentAnswerQuery(question.String(), wolfram.Metric, 1000)
+			if err != nil {
+				utils.ErrorLogger.Printf("Failed to get Wolfram Alpha response - %s\n", err)
+				response.Reply("Something went wrong, sorry")
+				return
+			}
+
+			response.Reply(res)
 		},
 	},
 }

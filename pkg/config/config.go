@@ -6,7 +6,10 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/joho/godotenv"
+	"github.com/krognol/go-wolfram"
 	"github.com/patrickmn/go-cache"
+
+	witai "github.com/wit-ai/wit-go/v2"
 
 	"slack-bot/pkg/utils"
 )
@@ -14,6 +17,14 @@ import (
 var (
 	SLACK_BOT_TOKEN string
 	SLACK_APP_TOKEN string
+)
+
+var (
+	WOLFRAM_APP_ID string
+	WIT_AI_TOKEN   string
+
+	WitAIClient   *witai.Client
+	WolframClient *wolfram.Client
 )
 
 var (
@@ -34,6 +45,16 @@ func init() {
 	loadEnv()
 	setEnv()
 	setUpAzure()
+	setUpAI()
+}
+
+func setUpAI() {
+	WitAIClient = witai.NewClient(WIT_AI_TOKEN)
+	WolframClient = &wolfram.Client{
+		AppID: WOLFRAM_APP_ID,
+	}
+
+	utils.InfoLogger.Println("Wit AI Client is initialized")
 }
 
 func setUpAzure() {
@@ -76,6 +97,13 @@ func setEnv() {
 
 	if AZURE_STORAGE_ACCOUNT == "" || AZURE_STORAGE_ACCESS_KEY == "" || AZURE_STORAGE_ACCOUNT_URL == "" {
 		utils.ErrorLogger.Fatalln("AZURE_STORAGE_ACCOUNT or AZURE_STORAGE_ACCESS_KEY or AZURE_STORAGE_ACCOUNT_URL are not set in .env file")
+	}
+
+	WOLFRAM_APP_ID = os.Getenv("WOLFRAM_APP_ID")
+	WIT_AI_TOKEN = os.Getenv("WIT_AI_TOKEN")
+
+	if WOLFRAM_APP_ID == "" || WIT_AI_TOKEN == "" {
+		utils.ErrorLogger.Fatalln("WOLFRAM_APP_ID or WIT_AI_TOKEN are not set in .env file")
 	}
 
 	utils.InfoLogger.Println("Environment and Config variables are set")

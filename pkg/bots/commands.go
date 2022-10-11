@@ -16,6 +16,7 @@ var SlackCommands = []Command{
 	slackListFiles,
 	slackValidateEmail,
 	slackGetFile,
+	slackAskQuestion,
 
 	slackStartTicTacToe,
 }
