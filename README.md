@@ -6,3 +6,4 @@ Slack-bot written with GoLang and SlackApi
 - Get available file (Azure Blob Storage)
 - Put a file from the provided link (Azure Blob Storage)
 - Play Tic-Tac-Toe with you (**WIP**)
+- Answer *almost any* question
