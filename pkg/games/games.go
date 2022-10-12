@@ -1,19 +1,25 @@
 package games
 
 import (
-	"context"
+	"slack-bot/pkg/utils"
+	"time"
 )
 
 type Game interface {
-	Init()
+	init()
 	String() (string, error)
-	Watcher(ctx context.Context)
+	Start(id string)
+	IsStarted() bool
+	GetTimer() time.Duration
+	watcher()
 }
 
-type ctxKey int
-
-const (
-	CtxKeyTicTacToe ctxKey = iota
+var (
+	tictactoe *utils.Singleton
 )
 
-var TicTacToeCtx context.Context
+const Timeout time.Duration = 10 * time.Minute
+
+func resetTicTacToe() {
+	tictactoe = nil
+}
