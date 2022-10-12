@@ -1,7 +1,6 @@
 package bots
 
 import (
-	"context"
 	"encoding/json"
 	"slack-bot/pkg/blob"
 	"slack-bot/pkg/config"
@@ -261,7 +260,9 @@ var slackStartTicTacToe = SlackCommand{
 		Description: "Start Tic-Tac-Toe game with Noxu-bot",
 		Examples:    []string{},
 		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
-			if games.TicTacToeCtx == nil {
+			game := games.GetTicTacToe().Instance.(*games.TicTacToe)
+
+			if !game.IsStarted() {
 				user, err := getUser(botCtx.Client(), botCtx.Event())
 				if err != nil {
 					utils.ErrorLogger.Printf("Failed to get user info: %s\n", err)
@@ -273,27 +274,36 @@ var slackStartTicTacToe = SlackCommand{
 					botID = "noxu-bot"
 				}
 
-				board := games.TicTacToe{}
-				board.Init()
-
-				games.TicTacToeCtx = context.WithValue(context.Background(), games.CtxKeyTicTacToe, board)
-				go games.Watcher(games.TicTacToeCtx)
-
-				b, err := board.String()
+				b, err := game.String()
 				if err != nil {
 					response.Reply("Something went wrong, sorry")
 					return
 				}
 
 				r := "Tic-Tac-Toe game started, use `tictactoe play <position>` to play\n"
-				r += fmt.Sprintf("<@%s>: %s\n", botID, board.AI)
-				r += fmt.Sprintf("<@%s>: %s\n", user.ID, board.Player)
+				r += fmt.Sprintf("Time left: *%s*\n\n", game.GetTimer())
+				r += fmt.Sprintf("<@%s>: %s\n", botID, game.GetAISymbol())
+				r += fmt.Sprintf("<@%s>: %s\n", user.ID, game.GetPlayerSymbol())
 				r += fmt.Sprintf("```%s```\n", b)
+
+				game.Start(user.ID)
 
 				response.Reply(r)
 			} else {
-				response.Reply("Tic-Tac-Toe game already started")
+				r := fmt.Sprintf("Tic-Tac-Toe game already started by <@%s>\n", game.GetUserID())
+				r += fmt.Sprintf("Time left: *%s*\n", game.GetTimer())
+				response.Reply(r)
 			}
+		},
+	},
+}
+
+var slackPlayTicTacToe = SlackCommand{
+	Name: "tictactoe play <position>",
+	CommandDefinition: &slacker.CommandDefinition{
+		Description: "Play Tic-Tac-Toe game with Noxu-bot",
+		Examples:    []string{"tictactoe play A3", "tictactoe play B2", "tictactoe play C1"},
+		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
 		},
 	},
 }

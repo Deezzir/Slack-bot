@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"sync"
 )
 
 var (
@@ -17,6 +18,13 @@ var (
 	MentionRegex   = regexp.MustCompile(`<@(.*?)>`)
 	DescRegex      = regexp.MustCompile(`"(.*?)"$`)
 )
+
+type Singleton struct {
+	Instance interface{}
+}
+
+var BotLock = &sync.Mutex{}
+var GameLock = &sync.Mutex{}
 
 func init() {
 	InfoLogger = log.New(os.Stdout, "[INFO]: ", log.Ldate|log.Ltime|log.Lshortfile)

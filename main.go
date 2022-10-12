@@ -4,17 +4,11 @@ import (
 	"context"
 
 	"slack-bot/pkg/bots"
-	"slack-bot/pkg/config"
 	"slack-bot/pkg/utils"
 )
 
 func main() {
-	bot := &bots.SlackBot{
-		Name:     "Noxu-Bot",
-		BotToken: config.SLACK_BOT_TOKEN,
-		AppToken: config.SLACK_APP_TOKEN,
-	}
-	bot.Init()
+	bot := bots.GetSlackBot().Instance.(*bots.SlackBot)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
