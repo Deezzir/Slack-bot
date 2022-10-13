@@ -247,12 +247,13 @@ var slackAskQuestion = SlackCommand{
 }
 
 var slackStartTicTacToe = SlackCommand{
-	Name: "tictactoe start",
+	Name: "tictactoe start {level}",
 	CommandDefinition: &slacker.CommandDefinition{
-		Description: "Start Tic-Tac-Toe game with Noxu-bot.",
+		Description: "Start Tic-Tac-Toe game with Noxu-bot. Level can be `easy`, `medium`, `hard` or `impossible`.",
 		Examples:    []string{},
 		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
 			game := games.GetTicTacToe().Instance.(*games.TicTacToe)
+			level := request.StringParam("level", "medium")
 
 			if !game.IsRunning() {
 				user, ok := getUser(botCtx.Client(), botCtx.Event())
@@ -262,11 +263,14 @@ var slackStartTicTacToe = SlackCommand{
 				}
 				botID := getBotID(botCtx)
 
-				game.Start(user.ID, botID)
-
-				if tictactoeTimestamp != "" {
-					deleteMsg(botCtx, tictactoeTimestamp)
+				err := game.SetLevel(strings.ToLower(level))
+				if err != nil {
+					r := fmt.Sprintf("Provided level `%s` is invalid. Please choose from `easy`, `medium`, `hard` or `impossible`.", level)
+					response.Reply(r)
+					return
 				}
+
+				game.Start(user.ID, botID)
 
 				r := "Tic-Tac-Toe game started, use `tictactoe play <position>` to play\n"
 				r += getTicTacToeString(game)
@@ -295,6 +299,7 @@ var slackStopTicTacToe = SlackCommand{
 
 			if game.IsRunning() {
 				game.Stop()
+				tictactoeTimestamp = ""
 				response.Reply("Tic-Tac-Toe game stopped")
 			} else {
 				r := "No Tic-Tac-Toe game started.\n"
@@ -313,9 +318,7 @@ var slackShowTicTacToe = SlackCommand{
 			var ok bool
 
 			if game.IsRunning() {
-				if tictactoeTimestamp != "" {
-					deleteMsg(botCtx, tictactoeTimestamp)
-				}
+				deleteTicTacToeMsg(botCtx)
 
 				r := fmt.Sprintf("Tic-Tac-Toe game with <@%s>\n", game.GetUserID())
 				r += getTicTacToeString(game)
@@ -358,11 +361,9 @@ var slackPlayTicTacToe = SlackCommand{
 						return
 					}
 
-					if tictactoeTimestamp != "" {
-						deleteMsg(botCtx, tictactoeTimestamp)
-					}
-
 					if game.IsRunning() {
+						deleteTicTacToeMsg(botCtx)
+
 						r := fmt.Sprintf("You played Tic-Tac-Toe game with `%s`\n", pos)
 						r += getTicTacToeString(game)
 

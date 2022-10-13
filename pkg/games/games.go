@@ -16,7 +16,7 @@ type Game interface {
 	GetTimer() time.Duration
 	SetTimer(time.Duration)
 
-	GetWinner() (bool, string)
+	GetWinnerID() (bool, string)
 }
 
 type singleton struct {
@@ -27,7 +27,7 @@ var (
 	tictactoe *singleton
 )
 
-const Timeout time.Duration = 10 * time.Minute
+const Timeout time.Duration = 5 * time.Minute
 
 func ResetTicTacToe() {
 	tictactoe = nil

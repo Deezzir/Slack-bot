@@ -37,6 +37,13 @@ func deleteMsg(botCtx slacker.BotContext, timestamp string) bool {
 	return err == nil
 }
 
+func deleteTicTacToeMsg(botCtx slacker.BotContext) {
+	if tictactoeTimestamp != "" {
+		deleteMsg(botCtx, tictactoeTimestamp)
+		tictactoeTimestamp = ""
+	}
+}
+
 func postMsg(botCtx slacker.BotContext, pretext, text string) (string, bool) {
 	timestamp, err := slackBot.Instance.(*SlackBot).PostMessage(botCtx.Event().Channel, pretext, text)
 	if err != nil {
@@ -46,9 +53,9 @@ func postMsg(botCtx slacker.BotContext, pretext, text string) (string, bool) {
 }
 
 func getTicTacToeString(game *games.TicTacToe) string {
-	r := fmt.Sprintf("Time left: *%s*\n\n", game.GetTimer())
-	r += fmt.Sprintf("<@%s>: %s\n", game.GetBotID(), game.GetAISymbol())
-	r += fmt.Sprintf("<@%s>: %s\n", game.GetUserID(), game.GetPlayerSymbol())
+	r := fmt.Sprintf("Time left: *%s*. Difficulty: `%s`\n\n", game.GetTimer(), game.GetLevel())
+	r += fmt.Sprintf("<@%s>: %s\n", game.GetBotID(), game.GetBotSymbol())
+	r += fmt.Sprintf("<@%s>: %s\n", game.GetUserID(), game.GetUserSymbol())
 	r += fmt.Sprintf("```%s```\n", game.String())
 
 	return r
@@ -64,10 +71,9 @@ func watchTicTacToe(botCtx slacker.BotContext, g *games.TicTacToe, timeout time.
 	var msg string
 	for {
 		if !g.IsRunning() {
-			ok, winner := g.GetWinner()
+			ok, winner := g.GetWinnerID()
 			if !ok {
 				utils.InfoLogger.Println("Tic-Tac-Toe game was stopped")
-				tictactoeTimestamp = ""
 				return
 			}
 			if winner == "" {
@@ -77,17 +83,17 @@ func watchTicTacToe(botCtx slacker.BotContext, g *games.TicTacToe, timeout time.
 				utils.InfoLogger.Printf("Tic-Tac-Toe game was won by %s\n", winner)
 				msg = fmt.Sprintf("Tic-Tac-Toe game was won by <@%s>\n", winner)
 			}
+
 			msg += getTicTacToeString(g)
-			if tictactoeTimestamp != "" {
-				deleteMsg(botCtx, tictactoeTimestamp)
-			}
+			deleteTicTacToeMsg(botCtx)
 			break
 		}
 		if g.GetTimer() <= 0 {
 			utils.InfoLogger.Println("Tic-Tac-Toe game has timed out")
-			g.Stop()
+
 			msg = fmt.Sprintf("Tick-Tack-Toe game with <@%s> has finished. Timed out.\n", g.GetUserID())
 			msg += "Use `tictactoe start` to start a new game\n"
+			g.Stop()
 
 			break
 		}

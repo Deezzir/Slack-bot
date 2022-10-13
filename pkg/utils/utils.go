@@ -35,3 +35,17 @@ func ExtractTxt(regex *regexp.Regexp, in string) string {
 	}
 	return str[1]
 }
+
+func Max(x, y int8) int8 {
+	if x < y {
+		return y
+	}
+	return x
+}
+
+func Min(x, y int8) int8 {
+	if x > y {
+		return y
+	}
+	return x
+}
