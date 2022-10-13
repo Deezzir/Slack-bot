@@ -2,7 +2,6 @@ package bots
 
 import (
 	"context"
-	"slack-bot/pkg/utils"
 )
 
 type Bot interface {
@@ -12,6 +11,10 @@ type Bot interface {
 	setCommands(commands []Command)
 }
 
+type singleton struct {
+	Instance Bot
+}
+
 var (
-	slackBot *utils.Singleton
+	slackBot *singleton
 )

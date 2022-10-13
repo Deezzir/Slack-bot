@@ -19,4 +19,7 @@ var SlackCommands = []Command{
 	slackAskQuestion,
 
 	slackStartTicTacToe,
+	slackStopTicTacToe,
+	slackShowTicTacToe,
+	slackPlayTicTacToe,
 }

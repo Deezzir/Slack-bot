@@ -19,10 +19,6 @@ var (
 	DescRegex      = regexp.MustCompile(`"(.*?)"$`)
 )
 
-type Singleton struct {
-	Instance interface{}
-}
-
 var BotLock = &sync.Mutex{}
 var GameLock = &sync.Mutex{}
 

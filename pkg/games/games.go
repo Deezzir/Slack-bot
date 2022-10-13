@@ -1,25 +1,34 @@
 package games
 
 import (
-	"slack-bot/pkg/utils"
 	"time"
 )
 
 type Game interface {
 	init()
-	String() (string, error)
-	Start(id string)
-	IsStarted() bool
+	String() string
+
+	Start(userID, botID string) error
+	Stop()
+
+	IsRunning() bool
+
 	GetTimer() time.Duration
-	watcher()
+	SetTimer(time.Duration)
+
+	GetWinner() (bool, string)
+}
+
+type singleton struct {
+	Instance Game
 }
 
 var (
-	tictactoe *utils.Singleton
+	tictactoe *singleton
 )
 
 const Timeout time.Duration = 10 * time.Minute
 
-func resetTicTacToe() {
+func ResetTicTacToe() {
 	tictactoe = nil
 }

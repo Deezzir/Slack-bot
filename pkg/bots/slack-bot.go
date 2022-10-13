@@ -19,7 +19,7 @@ type SlackBot struct {
 	bot *slacker.Slacker
 }
 
-func GetSlackBot() *utils.Singleton {
+func GetSlackBot() *singleton {
 	if slackBot == nil {
 		utils.BotLock.Lock()
 		defer utils.BotLock.Unlock()
@@ -31,7 +31,7 @@ func GetSlackBot() *utils.Singleton {
 				AppToken: config.SLACK_APP_TOKEN,
 			}
 			bot.init()
-			slackBot = &utils.Singleton{Instance: bot}
+			slackBot = &singleton{Instance: bot}
 		}
 	}
 	return slackBot
@@ -82,25 +82,39 @@ func (s *SlackBot) setCommands(commands []Command) {
 	}
 }
 
-func (s *SlackBot) PostMessage(chanel, msg string) {
+func (s *SlackBot) PostMessage(channel, pretext, text string) (string, error) {
 	client := s.bot.Client()
 
 	attachment := slack.Attachment{
-		Pretext: "Noxu Bot Message",
-		Text:    msg,
+		Pretext: pretext,
+		Text:    text,
 		Color:   "#174dbe",
 	}
 
 	_, timestamp, err := client.PostMessage(
-		chanel,
+		channel,
 		//slack.MsgOptionText("New message from bot", false),
 		slack.MsgOptionAttachments(attachment),
 	)
 
 	if err != nil {
 		utils.ErrorLogger.Printf("Failed to post a message - %s\n", err)
+		return "", err
 	}
-	utils.InfoLogger.Printf("Message successfully sent to channel %s at %s\n", chanel, timestamp)
+	utils.InfoLogger.Printf("Message successfully sent to channel (%s)\n", channel)
+	return timestamp, nil
+}
+
+func (s *SlackBot) DeleteMessage(channel, timestamp string) error {
+	client := s.bot.Client()
+
+	_, _, err := client.DeleteMessage(channel, timestamp)
+	if err != nil {
+		utils.ErrorLogger.Printf("Failed to delete message - %s\n", err)
+		return err
+	}
+	utils.InfoLogger.Printf("Message successfully deleted in channel(%s) from (%s)\n", channel, timestamp)
+	return nil
 }
 
 func (s *SlackBot) Start(ctx context.Context) {

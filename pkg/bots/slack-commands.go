@@ -19,15 +19,6 @@ import (
 	"time"
 )
 
-func getUser(client *slack.Client, event *slacker.MessageEvent) (*slack.User, error) {
-	user, err := client.GetUserInfo(event.User)
-	if err != nil {
-		return nil, err
-	}
-
-	return user, nil
-}
-
 var slackGetAge = SlackCommand{
 	Name: "birth year {year}",
 	CommandDefinition: &slacker.CommandDefinition{
@@ -37,7 +28,7 @@ var slackGetAge = SlackCommand{
 			user, err := getUser(botCtx.Client(), botCtx.Event())
 			if err != nil {
 				utils.ErrorLogger.Printf("Failed to get user info: %s\n", err)
-				response.Reply("Something went wrong, sorry")
+				response.Reply(errorMsg)
 				return
 			}
 
@@ -82,7 +73,7 @@ var slackYouSuck = SlackCommand{
 			user, err := getUser(botCtx.Client(), botCtx.Event())
 			if err != nil {
 				utils.ErrorLogger.Printf("Failed to get user info: %s\n", err)
-				response.Reply("Something went wrong, sorry")
+				response.Reply(errorMsg)
 				return
 			}
 
@@ -152,7 +143,7 @@ var slackGetFile = SlackCommand{
 					response.Reply("File not found, use `list files` for avaliable files")
 				}
 			} else {
-				response.Reply("Something went wrong, sorry")
+				response.Reply(errorMsg)
 			}
 		},
 	},
@@ -237,7 +228,7 @@ var slackAskQuestion = SlackCommand{
 			obj, err := json.MarshalIndent(msg, "", "    ")
 			if err != nil {
 				utils.ErrorLogger.Printf("Failed to encode Wit AI response - %s\n", err)
-				response.Reply("Something went wrong, sorry")
+				response.Reply(errorMsg)
 				return
 			}
 
@@ -245,11 +236,14 @@ var slackAskQuestion = SlackCommand{
 			res, err := config.WolframClient.GetSpokentAnswerQuery(question.String(), wolfram.Metric, 1000)
 			if err != nil {
 				utils.ErrorLogger.Printf("Failed to get Wolfram Alpha response - %s\n", err)
-				response.Reply("Something went wrong, sorry")
+				response.Reply(errorMsg)
 				return
 			}
-
-			response.Reply(res)
+			if strings.Contains(res, "No spoken result available") || strings.Contains(res, "Wolfram Alpha did not understand your input") {
+				response.Reply("Sorry, I don't know the answer to that question")
+			} else {
+				response.Reply(res)
+			}
 		},
 	},
 }
@@ -262,36 +256,85 @@ var slackStartTicTacToe = SlackCommand{
 		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
 			game := games.GetTicTacToe().Instance.(*games.TicTacToe)
 
-			if !game.IsStarted() {
+			if !game.IsRunning() {
 				user, err := getUser(botCtx.Client(), botCtx.Event())
 				if err != nil {
 					utils.ErrorLogger.Printf("Failed to get user info: %s\n", err)
-					response.Reply("Something went wrong, sorry")
+					response.Reply(errorMsg)
 					return
 				}
-				botID := utils.ExtractTxt(utils.MentionRegex, botCtx.Event().Text)
-				if botID == "" {
-					botID = "noxu-bot"
+				botID := getBotID(botCtx)
+
+				if err = game.Start(user.ID, botID); err != nil {
+					utils.ErrorLogger.Printf("Failed to start game: %s\n", err)
 				}
 
-				b, err := game.String()
-				if err != nil {
-					response.Reply("Something went wrong, sorry")
-					return
+				if tictactoeTimestamp != "" {
+					deleteTicTacToeMsg(botCtx, tictactoeTimestamp)
 				}
 
 				r := "Tic-Tac-Toe game started, use `tictactoe play <position>` to play\n"
-				r += fmt.Sprintf("Time left: *%s*\n\n", game.GetTimer())
-				r += fmt.Sprintf("<@%s>: %s\n", botID, game.GetAISymbol())
-				r += fmt.Sprintf("<@%s>: %s\n", user.ID, game.GetPlayerSymbol())
-				r += fmt.Sprintf("```%s```\n", b)
+				r += getTicTacToeString(game)
 
-				game.Start(user.ID)
+				go watchTicTacToe(botCtx, game, games.Timeout)
 
-				response.Reply(r)
+				tictactoeTimestamp, err = slackBot.Instance.(*SlackBot).PostMessage(botCtx.Event().Channel, r, "")
+				if err != nil {
+					utils.ErrorLogger.Printf("Error while posting message - %s\n", err.Error())
+					response.Reply(errorMsg)
+				}
 			} else {
 				r := fmt.Sprintf("Tic-Tac-Toe game already started by <@%s>\n", game.GetUserID())
 				r += fmt.Sprintf("Time left: *%s*\n", game.GetTimer())
+				response.Reply(r)
+			}
+		},
+	},
+}
+
+var slackStopTicTacToe = SlackCommand{
+	Name: "tictactoe stop",
+	CommandDefinition: &slacker.CommandDefinition{
+		Description: "Stop Tic-Tac-Toe game with Noxu-bot",
+		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
+			game := games.GetTicTacToe().Instance.(*games.TicTacToe)
+
+			if game.IsRunning() {
+				game.Stop()
+				response.Reply("Tic-Tac-Toe game stopped")
+			} else {
+				r := "No Tic-Tac-Toe game started.\n"
+				response.Reply(r)
+			}
+		},
+	},
+}
+
+var slackShowTicTacToe = SlackCommand{
+	Name: "tictactoe show",
+	CommandDefinition: &slacker.CommandDefinition{
+		Description: "Show current Tic-Tac-Toe game with Noxu-bot",
+		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
+			game := games.GetTicTacToe().Instance.(*games.TicTacToe)
+
+			if game.IsRunning() {
+				if tictactoeTimestamp != "" {
+					deleteTicTacToeMsg(botCtx, tictactoeTimestamp)
+				}
+
+				r := fmt.Sprintf("Tic-Tac-Toe game with <@%s>\n", game.GetUserID())
+				r += getTicTacToeString(game)
+
+				var err error
+				tictactoeTimestamp, err = slackBot.Instance.(*SlackBot).PostMessage(botCtx.Event().Channel, r, "")
+				if err != nil {
+					utils.ErrorLogger.Printf("Error while posting message - %s\n", err.Error())
+					response.Reply(errorMsg)
+				}
+			} else {
+				r := "No Tic-Tac-Toe game started.\n"
+				r += "Use `tictactoe start` to start a new game\n"
+
 				response.Reply(r)
 			}
 		},
@@ -304,6 +347,47 @@ var slackPlayTicTacToe = SlackCommand{
 		Description: "Play Tic-Tac-Toe game with Noxu-bot",
 		Examples:    []string{"tictactoe play A3", "tictactoe play B2", "tictactoe play C1"},
 		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
+			game := games.GetTicTacToe().Instance.(*games.TicTacToe)
+
+			if game.IsRunning() {
+				param := request.Param("position")
+				pos := utils.ExtractTxt(utils.HyperlinkRegex, param)
+				if pos == "" {
+					pos = param
+				}
+
+				if game.IsPlayerTurn() {
+					err := game.Play(pos)
+					if err != nil {
+						r := fmt.Sprintf("Tic-Tac-Toe play by <@%s>: %s\n", game.GetUserID(), err)
+						response.Reply(r)
+						return
+					}
+
+					if tictactoeTimestamp != "" {
+						deleteTicTacToeMsg(botCtx, tictactoeTimestamp)
+					}
+
+					if game.IsRunning() {
+						r := fmt.Sprintf("You played Tic-Tac-Toe game with `%s`\n", pos)
+						r += getTicTacToeString(game)
+
+						tictactoeTimestamp, err = slackBot.Instance.(*SlackBot).PostMessage(botCtx.Event().Channel, r, "")
+						if err != nil {
+							utils.ErrorLogger.Printf("Error while posting message - %s\n", err.Error())
+							response.Reply(errorMsg)
+						}
+					}
+				} else {
+					response.Reply("It's not your turn")
+					return
+				}
+			} else {
+				r := "No Tic-Tac-Toe game started.\n"
+				r += "Use `tictactoe start` to start a new game\n"
+
+				response.Reply(r)
+			}
 		},
 	},
 }
