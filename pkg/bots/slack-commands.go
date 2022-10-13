@@ -25,9 +25,8 @@ var slackGetAge = SlackCommand{
 		Description: "Calculates your age.",
 		Examples:    []string{"birth year 1990"},
 		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
-			user, err := getUser(botCtx.Client(), botCtx.Event())
-			if err != nil {
-				utils.ErrorLogger.Printf("Failed to get user info: %s\n", err)
+			user, ok := getUser(botCtx.Client(), botCtx.Event())
+			if !ok {
 				response.Reply(errorMsg)
 				return
 			}
@@ -70,9 +69,8 @@ var slackYouSuck = SlackCommand{
 	CommandDefinition: &slacker.CommandDefinition{
 		Description: "You can tell the bot that it sucks. But it will talk back.",
 		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
-			user, err := getUser(botCtx.Client(), botCtx.Event())
-			if err != nil {
-				utils.ErrorLogger.Printf("Failed to get user info: %s\n", err)
+			user, ok := getUser(botCtx.Client(), botCtx.Event())
+			if !ok {
 				response.Reply(errorMsg)
 				return
 			}
@@ -132,7 +130,7 @@ var slackGetFile = SlackCommand{
 						}
 
 						r := fmt.Sprintf("Downloading `%s` ...\n", file.Filename)
-						client.PostMessage(event.Channel, slack.MsgOptionText(r, false))
+						response.Reply(r)
 						_, err := client.UploadFile(params)
 						if err != nil {
 							utils.ErrorLogger.Printf("Failed to upload '%s' file to Slack channel\n", filename)
@@ -251,38 +249,34 @@ var slackAskQuestion = SlackCommand{
 var slackStartTicTacToe = SlackCommand{
 	Name: "tictactoe start",
 	CommandDefinition: &slacker.CommandDefinition{
-		Description: "Start Tic-Tac-Toe game with Noxu-bot",
+		Description: "Start Tic-Tac-Toe game with Noxu-bot.",
 		Examples:    []string{},
 		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
 			game := games.GetTicTacToe().Instance.(*games.TicTacToe)
 
 			if !game.IsRunning() {
-				user, err := getUser(botCtx.Client(), botCtx.Event())
-				if err != nil {
-					utils.ErrorLogger.Printf("Failed to get user info: %s\n", err)
+				user, ok := getUser(botCtx.Client(), botCtx.Event())
+				if !ok {
 					response.Reply(errorMsg)
 					return
 				}
 				botID := getBotID(botCtx)
 
-				if err = game.Start(user.ID, botID); err != nil {
-					utils.ErrorLogger.Printf("Failed to start game: %s\n", err)
-				}
+				game.Start(user.ID, botID)
 
 				if tictactoeTimestamp != "" {
-					deleteTicTacToeMsg(botCtx, tictactoeTimestamp)
+					deleteMsg(botCtx, tictactoeTimestamp)
 				}
 
 				r := "Tic-Tac-Toe game started, use `tictactoe play <position>` to play\n"
 				r += getTicTacToeString(game)
 
-				go watchTicTacToe(botCtx, game, games.Timeout)
-
-				tictactoeTimestamp, err = slackBot.Instance.(*SlackBot).PostMessage(botCtx.Event().Channel, r, "")
-				if err != nil {
-					utils.ErrorLogger.Printf("Error while posting message - %s\n", err.Error())
+				tictactoeTimestamp, ok = postMsg(botCtx, r, "")
+				if !ok {
 					response.Reply(errorMsg)
 				}
+
+				go watchTicTacToe(botCtx, game, games.Timeout)
 			} else {
 				r := fmt.Sprintf("Tic-Tac-Toe game already started by <@%s>\n", game.GetUserID())
 				r += fmt.Sprintf("Time left: *%s*\n", game.GetTimer())
@@ -295,7 +289,7 @@ var slackStartTicTacToe = SlackCommand{
 var slackStopTicTacToe = SlackCommand{
 	Name: "tictactoe stop",
 	CommandDefinition: &slacker.CommandDefinition{
-		Description: "Stop Tic-Tac-Toe game with Noxu-bot",
+		Description: "Stop Tic-Tac-Toe game with Noxu-bot.",
 		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
 			game := games.GetTicTacToe().Instance.(*games.TicTacToe)
 
@@ -313,22 +307,21 @@ var slackStopTicTacToe = SlackCommand{
 var slackShowTicTacToe = SlackCommand{
 	Name: "tictactoe show",
 	CommandDefinition: &slacker.CommandDefinition{
-		Description: "Show current Tic-Tac-Toe game with Noxu-bot",
+		Description: "Show current Tic-Tac-Toe game with Noxu-bot.",
 		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
 			game := games.GetTicTacToe().Instance.(*games.TicTacToe)
+			var ok bool
 
 			if game.IsRunning() {
 				if tictactoeTimestamp != "" {
-					deleteTicTacToeMsg(botCtx, tictactoeTimestamp)
+					deleteMsg(botCtx, tictactoeTimestamp)
 				}
 
 				r := fmt.Sprintf("Tic-Tac-Toe game with <@%s>\n", game.GetUserID())
 				r += getTicTacToeString(game)
 
-				var err error
-				tictactoeTimestamp, err = slackBot.Instance.(*SlackBot).PostMessage(botCtx.Event().Channel, r, "")
-				if err != nil {
-					utils.ErrorLogger.Printf("Error while posting message - %s\n", err.Error())
+				tictactoeTimestamp, ok = postMsg(botCtx, r, "")
+				if !ok {
 					response.Reply(errorMsg)
 				}
 			} else {
@@ -344,10 +337,11 @@ var slackShowTicTacToe = SlackCommand{
 var slackPlayTicTacToe = SlackCommand{
 	Name: "tictactoe play <position>",
 	CommandDefinition: &slacker.CommandDefinition{
-		Description: "Play Tic-Tac-Toe game with Noxu-bot",
-		Examples:    []string{"tictactoe play A3", "tictactoe play B2", "tictactoe play C1"},
+		Description: "Play Tic-Tac-Toe game with Noxu-bot.",
+		Examples:    []string{"tictactoe play A3", "tictactoe play b2"},
 		Handler: func(botCtx slacker.BotContext, request slacker.Request, response slacker.ResponseWriter) {
 			game := games.GetTicTacToe().Instance.(*games.TicTacToe)
+			var ok bool
 
 			if game.IsRunning() {
 				param := request.Param("position")
@@ -365,16 +359,15 @@ var slackPlayTicTacToe = SlackCommand{
 					}
 
 					if tictactoeTimestamp != "" {
-						deleteTicTacToeMsg(botCtx, tictactoeTimestamp)
+						deleteMsg(botCtx, tictactoeTimestamp)
 					}
 
 					if game.IsRunning() {
 						r := fmt.Sprintf("You played Tic-Tac-Toe game with `%s`\n", pos)
 						r += getTicTacToeString(game)
 
-						tictactoeTimestamp, err = slackBot.Instance.(*SlackBot).PostMessage(botCtx.Event().Channel, r, "")
-						if err != nil {
-							utils.ErrorLogger.Printf("Error while posting message - %s\n", err.Error())
+						tictactoeTimestamp, ok = postMsg(botCtx, r, "")
+						if !ok {
 							response.Reply(errorMsg)
 						}
 					}

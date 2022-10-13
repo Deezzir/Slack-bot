@@ -1,7 +1,6 @@
 package games
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"slack-bot/pkg/utils"
@@ -270,9 +269,10 @@ func (g *TicTacToe) IsRunning() bool {
 	return g.running
 }
 
-func (g *TicTacToe) Start(userID, botID string) error {
+func (g *TicTacToe) Start(userID, botID string) bool {
 	if g.running {
-		return errors.New("game already running")
+		utils.ErrorLogger.Printf("Failed to start game: Game is already running")
+		return false
 	}
 
 	g.user.ID = userID
@@ -282,7 +282,7 @@ func (g *TicTacToe) Start(userID, botID string) error {
 	g.playBot()
 
 	utils.InfoLogger.Printf("Tic-Tac-Toe game has strated, will timeout at %s\n", time.Now().Add(g.timer).Format(time.UnixDate))
-	return nil
+	return true
 }
 
 func (g *TicTacToe) Stop() {

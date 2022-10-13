@@ -8,7 +8,7 @@ type Game interface {
 	init()
 	String() string
 
-	Start(userID, botID string) error
+	Start(userID, botID string) bool
 	Stop()
 
 	IsRunning() bool

@@ -15,13 +15,13 @@ var (
 	tictactoeTimestamp = ""
 )
 
-func getUser(client *slack.Client, event *slacker.MessageEvent) (*slack.User, error) {
+func getUser(client *slack.Client, event *slacker.MessageEvent) (*slack.User, bool) {
 	user, err := client.GetUserInfo(event.User)
 	if err != nil {
-		return nil, err
+		utils.ErrorLogger.Printf("Failed to get user info: %s\n", err)
+		return nil, false
 	}
-
-	return user, nil
+	return user, true
 }
 
 func getBotID(botCtx slacker.BotContext) string {
@@ -29,16 +29,20 @@ func getBotID(botCtx slacker.BotContext) string {
 	if botID == "" {
 		botID = "noxu-bot"
 	}
-
 	return botID
 }
 
-func deleteTicTacToeMsg(botCtx slacker.BotContext, timestamp string) error {
+func deleteMsg(botCtx slacker.BotContext, timestamp string) bool {
 	err := slackBot.Instance.(*SlackBot).DeleteMessage(botCtx.Event().Channel, timestamp)
+	return err == nil
+}
+
+func postMsg(botCtx slacker.BotContext, pretext, text string) (string, bool) {
+	timestamp, err := slackBot.Instance.(*SlackBot).PostMessage(botCtx.Event().Channel, pretext, text)
 	if err != nil {
-		return err
+		return "", false
 	}
-	return nil
+	return timestamp, true
 }
 
 func getTicTacToeString(game *games.TicTacToe) string {
@@ -55,11 +59,9 @@ func watchTicTacToe(botCtx slacker.BotContext, g *games.TicTacToe, timeout time.
 		utils.ErrorLogger.Println("Tic-Tac-Toe game is not started")
 		return
 	}
-
 	defer games.ResetTicTacToe()
 
 	var msg string
-
 	for {
 		if !g.IsRunning() {
 			ok, winner := g.GetWinner()
@@ -77,7 +79,7 @@ func watchTicTacToe(botCtx slacker.BotContext, g *games.TicTacToe, timeout time.
 			}
 			msg += getTicTacToeString(g)
 			if tictactoeTimestamp != "" {
-				deleteTicTacToeMsg(botCtx, tictactoeTimestamp)
+				deleteMsg(botCtx, tictactoeTimestamp)
 			}
 			break
 		}
@@ -93,8 +95,8 @@ func watchTicTacToe(botCtx slacker.BotContext, g *games.TicTacToe, timeout time.
 		g.SetTimer(g.GetTimer() - 1*time.Second)
 	}
 
-	_, err := slackBot.Instance.(*SlackBot).PostMessage(botCtx.Event().Channel, "", msg)
-	if err != nil {
-		utils.ErrorLogger.Printf("Error while posting message - %s\n", err.Error())
+	_, ok := postMsg(botCtx, "", msg)
+	if !ok {
+		utils.ErrorLogger.Println("Failed to post Tic-Tac-Toe game message")
 	}
 }
