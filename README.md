@@ -1,4 +1,4 @@
-# Slack-Bot
+# Noxu Slack-Bot
 Slack-bot written with GoLang and SlackApi
 - Calculate your age
 - Tell you that you suck
